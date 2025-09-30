@@ -466,6 +466,7 @@ def _go_deps_impl(module_ctx):
                 if module_path not in bazel_deps or version > bazel_deps[module_path].version:
                     bazel_deps[module_path] = struct(
                         module_name = module.name,
+                        # here?
                         repo_name = "@" + from_file_tag.go_mod.repo_name,
                         version = version,
                         raw_version = raw_version,
