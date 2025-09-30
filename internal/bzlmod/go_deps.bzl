@@ -164,6 +164,7 @@ def _get_patch_args(path, module_overrides):
     return ["-p{}".format(override)] if override else []
 
 def _repo_name(importpath):
+    # add version as  the suffix??
     path_segments = importpath.split("/")
     segments = reversed(path_segments[0].split(".")) + path_segments[1:]
     candidate_name = "_".join(segments).replace("-", "_")
