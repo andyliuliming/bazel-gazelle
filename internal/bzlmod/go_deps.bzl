@@ -163,9 +163,10 @@ def _get_patch_args(path, module_overrides):
     override = _get_override_or_default(module_overrides, struct(), {}, path, None, "patch_strip")
     return ["-p{}".format(override)] if override else []
 
-def _repo_name(importpath):
-    path_segments = importpath.split("/")
+def _repo_name(module_tag):
+    path_segments = module_tag.path.split("/")
     segments = reversed(path_segments[0].split(".")) + path_segments[1:]
+    segments.append(module_tag.version)
     candidate_name = "_".join(segments).replace("-", "_")
     return "".join([c.lower() if c.isalnum() else "_" for c in candidate_name.elems()])
 
@@ -391,13 +392,14 @@ def _go_deps_impl(module_ctx):
         _process_overrides(module_ctx, module, "module_override", module_overrides, _process_module_override, archive_overrides)
         _process_overrides(module_ctx, module, "archive_override", archive_overrides, _process_archive_override, module_overrides)
 
-        if len(module.tags.from_file) > 1:
-            fail(
-                "Multiple \"go_deps.from_file\" tags defined in module \"{}\": {}".format(
-                    module.name,
-                    ", ".join([str(tag.go_mod) for tag in module.tags.from_file]),
-                ),
-            )
+        # remove the check now
+        # if len(module.tags.from_file) > 1:
+        #     fail(
+        #         "Multiple \"go_deps.from_file\" tags defined in module \"{}\": {}".format(
+        #             module.name,
+        #             ", ".join([str(tag.go_mod) for tag in module.tags.from_file]),
+        #         ),
+        #     )
 
         additional_module_tags = []
         from_file_tags = []
@@ -519,9 +521,9 @@ def _go_deps_impl(module_ctx):
             if module.is_root and (not module_tag.indirect or module_tag.path in possible_tool_modules):
                 root_versions[module_tag.path] = raw_version
                 if _is_dev_dependency(module_ctx, module_tag):
-                    root_module_direct_dev_deps[_repo_name(module_tag.path)] = None
+                    root_module_direct_dev_deps[_repo_name(module_tag)] = None
                 else:
-                    repo_name = _repo_name(module_tag.path)
+                    repo_name = _repo_name(module_tag)
                     if repo_name == "com_github_xuxife_gazelle_multi_gomod_poc_dep":
                         root_module_direct_deps[repo_name + "_v0.0.1"] = None
                         root_module_direct_deps[repo_name + "_v0.0.2"] = None
@@ -682,8 +684,8 @@ Mismatch between versions requested for Go module {module}:
         if hasattr(module, "module_name") or (getattr(module_ctx, "is_isolated", False) and path in _SHARED_REPOS):
             # Do not create a go_repository for a Go module provided by a bazel_dep or one shared with the non-isolated
             # instance of go_deps.
-            root_module_direct_deps.pop(_repo_name(path), None)
-            root_module_direct_dev_deps.pop(_repo_name(path), None)
+            root_module_direct_deps.pop(_repo_name(struct(path=path, version="v"+module.raw_version)), None)
+            root_module_direct_dev_deps.pop(_repo_name(struct(path=path, version="v"+module.raw_version)), None)
             continue
         if module.repo_name in repos_processed:
             fail("Go module {prev_path} and {path} will resolve to the same Bazel repo name: {name}. While Go allows modules to only differ in case, this isn't supported in Gazelle (yet). Please ensure you only use one of these modules in your go.mod(s)".format(
