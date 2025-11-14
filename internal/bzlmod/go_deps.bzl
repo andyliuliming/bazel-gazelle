@@ -362,7 +362,10 @@ def _go_deps_impl(module_ctx):
     gazelle_overrides = {}
     module_overrides = {}
 
-    root_versions = {}
+    # PATCH:
+    # root_versions was {<mod_path>: <version>}
+    # all_root_versions is {<Label of go.mod / go.work>: {<mod_path>: <version>}}
+    all_root_versions = {}
     root_module_direct_deps = {}
     root_module_direct_dev_deps = {}
 
@@ -432,6 +435,7 @@ def _go_deps_impl(module_ctx):
             go_mod_or_work_label = from_file_tag.go_mod if from_file_tag.go_mod else from_file_tag.go_work
             all_module_resolutions[go_mod_or_work_label] = {}
             all_replace_map[go_mod_or_work_label] = {}
+            all_root_versions[go_mod_or_work_label] = {}
             all_additional_module_tags[go_mod_or_work_label] = []
             all_from_file_tags[go_mod_or_work_label] = []
 
@@ -522,6 +526,7 @@ def _go_deps_impl(module_ctx):
             _safe_insert_sum(sums, (module_tag.path, sum_version), module_tag.sum)
 
         for go_mod_or_work_label, additional_module_tags in all_additional_module_tags.items():
+            root_versions = all_root_versions[go_mod_or_work_label]
             # Parse the go_dep.module tags of all transitive dependencies and apply
             # Minimum Version Selection to resolve importpaths to Go module versions
             # and sums.
@@ -547,7 +552,7 @@ def _go_deps_impl(module_ctx):
                 # that provide any tools listed with a "tool" directive, otherwise
                 # tools can't be built after a `bazel mod tidy`.
                 if module.is_root and (not module_tag.indirect or module_tag.path in possible_tool_modules):
-                    root_versions[module_tag.path] = raw_version # TODO: what's root_versions used for?
+                    root_versions[module_tag.path] = raw_version
                     if _is_dev_dependency(module_ctx, module_tag):
                         root_module_direct_dev_deps[_repo_name(module_tag, versioned=True)] = None
                     else:
@@ -588,6 +593,7 @@ def _go_deps_impl(module_ctx):
 
     for go_mod_or_work_label, replace_map in all_replace_map.items():
         module_resolutions = all_module_resolutions[go_mod_or_work_label]
+        root_versions = all_root_versions[go_mod_or_work_label]
 
         # All `replace` directives are applied after version resolution.
         # We can simply do this by checking the replace paths' existence
@@ -617,6 +623,7 @@ def _go_deps_impl(module_ctx):
                         root_versions[path] = replace.version
 
     for go_mod_or_work_label, module_resolutions in all_module_resolutions.items():
+        root_versions = all_root_versions[go_mod_or_work_label]
         for path, bazel_dep in bazel_deps.items():
             # We can't apply overrides to Bazel dependencies and thus fall back to using the Go module.
             if path in archive_overrides or path in gazelle_overrides or path in module_overrides or path in all_replace_map[go_mod_or_work_label]:
